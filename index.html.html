@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Sistema Financeiro</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f4f4;
+  --card:#ffffff;
+  --text:#222;
+  --accent:#f5c400;
+}
+.dark{
+  --bg:#121212;
+  --card:#1e1e1e;
+  --text:#f5f5f5;
+}
+*{box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:var(--bg);margin:0;color:var(--text);transition:background .3s,color .3s}
+.container{max-width:480px;margin:auto;padding:15px}
+.card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:15px;box-shadow:0 10px 20px rgba(0,0,0,.15);animation:fade .4s ease}
+@keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+h1,h2,h3{text-align:center;margin:8px 0}
+input,select,button{width:100%;padding:12px;border-radius:12px;border:1px solid #ccc;font-size:14px}
+button{background:var(--accent);border:none;font-weight:700;cursor:pointer;transition:transform .15s,opacity .15s}
+button:hover{transform:scale(1.03);opacity:.95}
+button.sec{background:#666;color:#fff}
+.flex{display:flex;gap:10px}
+.badge{font-size:12px;padding:4px 8px;border-radius:8px;background:#444;color:#fff}
+.saldo{font-size:26px;font-weight:700;text-align:center;margin:10px 0}
+.lista li{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #555;font-size:13px}
+.actions button{width:auto;padding:6px 10px;font-size:12px;border-radius:8px}
+.logo{max-width:110px;margin:0 auto 10px;display:block}
+.notif{color:#ff5252;font-weight:600;text-align:center}
+.hide{display:none}
+.toggle{position:fixed;top:15px;right:15px;background:var(--card);border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 10px rgba(0,0,0,.2)}
+@media print{button,input,select,.toggle{display:none}}
+</style>
+</head>
+<body>
+
+<div class="toggle" onclick="toggleTema()">🌙</div>
+
+<div class="container">
+
+<div id="loginBox" class="card">
+<h2>Login</h2>
+<input id="usuario" placeholder="Usuário">
+<input id="senha" type="password" placeholder="Senha">
+<button onclick="login()">Entrar</button>
+<hr>
+<h3>Registrar Chefe</h3>
+<input id="novoUsuario" placeholder="Usuário">
+<input id="novaSenha" type="password" placeholder="Senha">
+<button onclick="registrarChefe()">Registrar</button>
+</div>
+
+<div id="dashboard" class="hide">
+<div class="card">
+<img id="logoEmpresa" class="logo">
+<input type="file" accept="image/*" onchange="carregarLogo(event)">
+<h2>Fluxo de Caixa</h2>
+<p style="text-align:center">Usuário: <b id="nomeUser"></b> <span class="badge" id="perfil"></span></p>
+<p id="notificacao" class="notif"></p>
+<button id="resolverAlertas" class="sec hide" onclick="resolverAlertas()">♻️ Resolver alertas</button>
+</div>
+
+<div class="card">
+<select id="filtroMes" onchange="render()"></select>
+<select id="filtroUsuario" onchange="render()"></select>
+<div class="flex">
+<select id="tipo"><option value="entrada">Entrada</option><option value="saida">Saída</option></select>
+<input id="valor" type="number" placeholder="Valor">
+</div>
+<input id="descricao" placeholder="Descrição">
+<button onclick="adicionar()">Adicionar</button>
+</div>
+
+<div class="card">
+<div class="saldo">R$ <span id="saldo">0.00</span></div>
+<canvas id="grafico"></canvas>
+</div>
+
+<div class="card">
+<h3>Movimentações</h3>
+<ul id="lista" class="lista"></ul>
+</div>
+
+<div class="card">
+<button onclick="exportarPDF()">Exportar PDF</button>
+<button onclick="exportarExcel()">Exportar Excel</button>
+<button class="sec" onclick="logout()">Sair</button>
+</div>
+</div>
+</div>
+
+<script>
+let usuarios=JSON.parse(localStorage.getItem('usuarios'))||{Kaike:{senha:'aksdssan',perfil:'chefe'}};
+let dados=JSON.parse(localStorage.getItem('fluxo'))||[];
+let alertasPendentes=JSON.parse(localStorage.getItem('alertasPendentes'))||[];
+let usuarioAtual='';let chart;
+
+function toggleTema(){
+ document.body.classList.toggle('dark');
+ localStorage.setItem('tema',document.body.classList.contains('dark')?'dark':'light');
+}
+if(localStorage.getItem('tema')==='dark') document.body.classList.add('dark');
+
+function login(){const u=usuario.value.trim(),s=senha.value.trim();if(!usuarios[u])return alert('Usuário não encontrado');if(usuarios[u].senha!==s)return alert('Senha incorreta');usuarioAtual=u;localStorage.setItem('logado',u);iniciar();}
+function registrarChefe(){const u=novoUsuario.value.trim(),s=novaSenha.value.trim();if(!u||!s)return alert('Preencha tudo');if(usuarios[u])return alert('Usuário já existe');usuarios[u]={senha:s,perfil:'chefe'};localStorage.setItem('usuarios',JSON.stringify(usuarios));alert('Chefe registrado');}
+function iniciar(){loginBox.style.display='none';dashboard.classList.remove('hide');nomeUser.innerText=usuarioAtual;perfil.innerText=usuarios[usuarioAtual].perfil;carregarFiltros();render();}
+function adicionar(){if(!descricao.value||!valor.value)return alert('Preencha corretamente');dados.push({tipo:tipo.value,desc:descricao.value,valor:Number(valor.value),usuario:usuarioAtual,data:new Date().toISOString()});localStorage.setItem('fluxo',JSON.stringify(dados));descricao.value=valor.value='';carregarFiltros();render();}
+function carregarFiltros(){filtroMes.innerHTML='<option value="">Todos os meses</option>';filtroUsuario.innerHTML='<option value="">Todos usuários</option>';[...new Set(dados.map(d=>d.data.slice(0,7)))].forEach(m=>filtroMes.innerHTML+=`<option>${m}</option>`);[...new Set(dados.map(d=>d.usuario))].forEach(u=>filtroUsuario.innerHTML+=`<option>${u}</option>`);}
+function render(){lista.innerHTML='';let saldo=0,ent=0,sai=0;dados.forEach((d,i)=>{saldo+=d.tipo==='entrada'?d.valor:-d.valor;d.tipo==='entrada'?ent+=d.valor:sai+=d.valor;lista.innerHTML+=`<li>${new Date(d.data).toLocaleString()} - ${d.desc} R$ ${d.valor.toFixed(2)}<div class="actions"><button onclick="confirmarExcluir(${i})">🗑️</button><button onclick="avisarChefe(${i})">🚨</button></div></li>`});document.getElementById('saldo').innerText=saldo.toFixed(2);if(chart)chart.destroy();chart=new Chart(grafico,{type:'bar',data:{labels:['Entradas','Saídas'],datasets:[{data:[ent,sai]}]}});}
+function confirmarExcluir(i){if(confirm('Excluir lançamento?')){dados.splice(i,1);localStorage.setItem('fluxo',JSON.stringify(dados));render();}}
+function avisarChefe(){alertasPendentes.push({usuario:usuarioAtual});localStorage.setItem('alertasPendentes',JSON.stringify(alertasPendentes));notificacao.innerText='⚠️ Alerta enviado ao chefe';}
+function resolverAlertas(){alertasPendentes=[];localStorage.setItem('alertasPendentes','[]');notificacao.innerText='';}
+function exportarPDF(){window.print()}
+function exportarExcel(){let csv='Data,Descrição,Tipo,Valor,Usuário\n';dados.forEach(d=>csv+=`${new Date(d.data).toLocaleString()},${d.desc},${d.tipo},${d.valor},${d.usuario}\n`);const b=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='fluxo.csv';a.click();}
+function carregarLogo(e){const r=new FileReader();r.onload=()=>{logoEmpresa.src=r.result;localStorage.setItem('logo',r.result)};r.readAsDataURL(e.target.files[0]);}
+function logout(){localStorage.removeItem('logado');location.reload()}
+const log=localStorage.getItem('logado');if(log){usuarioAtual=log;iniciar()}
+</script>
+</body>
+</html>
